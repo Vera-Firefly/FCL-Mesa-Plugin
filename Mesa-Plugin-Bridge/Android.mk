@@ -1,0 +1,10 @@
+LOCAL_PATH := $(call my-dir)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := OSMBridge
+LOCAL_SRC_FILES := src/bridge.c
+LOCAL_C_INCLUDES := $(LOCAL_PATH)
+LOCAL_CFLAGS := -Wall -fPIC
+LOCAL_LDLIBS := -ldl
+
+include $(BUILD_SHARED_LIBRARY)
