@@ -14,11 +14,11 @@ Third party components
 ====
 
 Here are the third-party components that this plugin application is using:
-===
+
 [FCL-Renderer-Plugin](https://github.com/ShirosakiMio/FCLRendererPlugin)
-===
+
 [Mesa3D](https://gitlab.freedesktop.org/mesa/mesa/)
-===
+
 [Mesa-Plugin-Bridge](https://github.com/Vera-Firefly/FCL-Mesa-Plugin/tree/main/Mesa-Plugin-Bridge)
-===
+
 [android-mesa-build](https://github.com/Vera-Firefly/android-mesa-build)
