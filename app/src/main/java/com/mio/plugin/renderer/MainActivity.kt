@@ -86,6 +86,14 @@ class MainActivity : Activity() {
             }
         }
 
+        val ogpaSwitch = Switch(this).apply {
+            text = "仅使用getProcAddress(不建议使用)"
+            isChecked = readOGPAStatus()
+            setOnCheckedChangeListener { _, isChecked ->
+                updateOGPAStatus(isChecked)
+            }
+        }
+
         val settingsButton = Button(this).apply {
             text = "Gallium驱动设置"
             setOnClickListener {
@@ -97,6 +105,7 @@ class MainActivity : Activity() {
         mainLayout.addView(releaseTextView)
         mainLayout.addView(authorTextView)
         mainLayout.addView(logSwitch)
+        mainLayout.addView(ogpaSwitch)
         mainLayout.addView(settingsButton)
 
         scrollView.addView(mainLayout)
@@ -177,6 +186,7 @@ class MainActivity : Activity() {
                 MESA_GL_VERSION_OVERRIDE=4.6
                 MESA_GLSL_VERSION_OVERRIDE=460
                 OSM_PLUGIN_LOGE=false
+                ONLY_GET_PROC_ADDRESS=false
                 """.trimIndent()
             )
         }
@@ -187,11 +197,28 @@ class MainActivity : Activity() {
         return envFile.readLines().any { it.trim() == "OSM_PLUGIN_LOGE=true" }
     }
 
+    private fun readOGPAStatus(): Boolean {
+        if (!envFile.exists() || !hasAllFilesPermission) return false
+        return envFile.readLines().any { it.trim() == "ONLY_GET_PROC_ADDRESS=true" }
+    }
+
     private fun updateLogStatus(enabled: Boolean) {
         if (!envFile.exists() || !hasAllFilesPermission) return
         val newContent = envFile.readLines().map { line ->
             if (line.startsWith("OSM_PLUGIN_LOGE=")) {
                 "OSM_PLUGIN_LOGE=$enabled"
+            } else {
+                line
+            }
+        }.joinToString("\n")
+        envFile.writeText(newContent)
+    }
+
+    private fun updateOGPAStatus(enabled: Boolean) {
+        if (!envFile.exists() || !hasAllFilesPermission) return
+        val newContent = envFile.readLines().map { line ->
+            if (line.startsWith("ONLY_GET_PROC_ADDRESS=")) {
+                "ONLY_GET_PROC_ADDRESS=$enabled"
             } else {
                 line
             }
