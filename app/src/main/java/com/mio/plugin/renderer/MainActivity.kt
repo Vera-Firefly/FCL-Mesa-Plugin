@@ -192,40 +192,61 @@ class MainActivity : Activity() {
         }
     }
 
+    // 插件日志输出
     private fun readLogStatus(): Boolean {
         if (!envFile.exists() || !hasAllFilesPermission) return false
         return envFile.readLines().any { it.trim() == "OSM_PLUGIN_LOGE=true" }
     }
 
+    private fun updateLogStatus(enabled: Boolean) {
+        checkAndCreateEnvFile()
+        if (!hasAllFilesPermission || !envFile.exists()) return
+
+        val lines = envFile.readLines().toMutableList()
+        var found = false
+
+        for (i in lines.indices) {
+            if (lines[i].startsWith("OSM_PLUGIN_LOGE=")) {
+                lines[i] = "OSM_PLUGIN_LOGE=$enabled"
+                found = true
+                break
+            }
+        }
+
+        if (!found)
+            lines.add("OSM_PLUGIN_LOGE=$enabled")
+
+        envFile.writeText(lines.joinToString("\n"))
+    }
+
+    // 仅使用 getProcAddress
     private fun readOGPAStatus(): Boolean {
         if (!envFile.exists() || !hasAllFilesPermission) return false
         return envFile.readLines().any { it.trim() == "ONLY_GET_PROC_ADDRESS=true" }
     }
 
-    private fun updateLogStatus(enabled: Boolean) {
-        if (!envFile.exists() || !hasAllFilesPermission) return
-        val newContent = envFile.readLines().map { line ->
-            if (line.startsWith("OSM_PLUGIN_LOGE=")) {
-                "OSM_PLUGIN_LOGE=$enabled"
-            } else {
-                line
-            }
-        }.joinToString("\n")
-        envFile.writeText(newContent)
-    }
-
     private fun updateOGPAStatus(enabled: Boolean) {
-        if (!envFile.exists() || !hasAllFilesPermission) return
-        val newContent = envFile.readLines().map { line ->
-            if (line.startsWith("ONLY_GET_PROC_ADDRESS=")) {
-                "ONLY_GET_PROC_ADDRESS=$enabled"
-            } else {
-                line
+        checkAndCreateEnvFile()
+        if (!hasAllFilesPermission || !envFile.exists()) return
+
+        val lines = envFile.readLines().toMutableList()
+        var found = false
+
+        for (i in lines.indices) {
+            if (lines[i].startsWith("ONLY_GET_PROC_ADDRESS=")) {
+                lines[i] = "ONLY_GET_PROC_ADDRESS=$enabled"
+                found = true
+                break
             }
-        }.joinToString("\n")
-        envFile.writeText(newContent)
+        }
+
+        if (!found)
+            lines.add("ONLY_GET_PROC_ADDRESS=$enabled")
+
+        envFile.writeText(lines.joinToString("\n"))
     }
 
+    // 选择 gallium 驱动
     private fun showGalliumDriverDialog() {
         if (!hasAllFilesPermission) return
         val drivers = arrayOf("zink", "freedreno", "panfrost", "softpipe", "llvmpipe")
@@ -252,15 +273,24 @@ class MainActivity : Activity() {
     }
 
     private fun updateGalliumDriver(newDriver: String) {
-        if (!envFile.exists() || !hasAllFilesPermission) return
-        val newContent = envFile.readLines().map { line ->
-            if (line.startsWith("GALLIUM_DRIVER=")) {
-                "GALLIUM_DRIVER=$newDriver"
-            } else {
-                line
+        checkAndCreateEnvFile()
+        if (!hasAllFilesPermission || !envFile.exists()) return
+
+        val lines = envFile.readLines().toMutableList()
+        var found = false
+
+        for (i in lines.indices) {
+            if (lines[i].startsWith("GALLIUM_DRIVER=")) {
+                lines[i] = "GALLIUM_DRIVER=$newDriver"
+                found = true
+                break
             }
-        }.joinToString("\n")
-        envFile.writeText(newContent)
+        }
+
+        if (!found)
+            lines.add("GALLIUM_DRIVER=$newDriver")
+
+        envFile.writeText(lines.joinToString("\n"))
     }
 
 }
