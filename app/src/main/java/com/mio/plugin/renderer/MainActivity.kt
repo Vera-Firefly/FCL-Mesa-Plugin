@@ -138,9 +138,9 @@ class MainActivity : Activity() {
         mainLayout.addView(rendererNameTextView)
         mainLayout.addView(releaseTextView)
         mainLayout.addView(authorTextView)
-        mainLayout.addView(mainButton)
-
         mainLayout.addView(divider)
+
+        mainLayout.addView(mainButton)
 
         mainLayout.addView(logSwitch)
         mainLayout.addView(ogpaSwitch)
