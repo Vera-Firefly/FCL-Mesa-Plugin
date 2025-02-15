@@ -43,7 +43,7 @@ android {
             manifestPlaceholders["boatEnv"] = mutableMapOf<String,String>().apply {
 
             }.run {
-                var env = "LIBGL_STRING=custom_gallium:LIBGL_NAME=libOSMesa.so:LIB_MESA_NAME=libOSMesa.so:DLOPEN=libOSMBridge.so"
+                var env = "LIBGL_STRING=custom_gallium:LIBGL_NAME=libOSMesa.so:LIB_MESA_NAME=libOSMesa.so:MESA_LIBRARY=libOSMesa.so:DLOPEN=libOSMBridge.so"
                 forEach { (key, value) ->
                     env += "$key=$value:"
                 }

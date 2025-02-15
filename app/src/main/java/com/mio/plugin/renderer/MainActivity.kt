@@ -12,6 +12,7 @@ import android.os.*
 import android.provider.Settings
 import android.view.Gravity
 import android.view.KeyEvent
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
@@ -26,6 +27,10 @@ class MainActivity : Activity() {
     private var isNoticedAllFilesPermissionMissing = false
     private val envFile = File(Environment.getExternalStorageDirectory(), "Mesa/env.txt")
 
+    private lateinit var logSwitch: Switch
+    private lateinit var ogpaSwitch: Switch
+    private lateinit var settingsButton: Button
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         checkPermission()
@@ -39,7 +44,7 @@ class MainActivity : Activity() {
         }
 
         val rendererNameTextView = TextView(this).apply {
-            text = "Mesa 25.0.0-RC1"
+            text = "Mesa Plugin"
             textSize = 28f
             setTextColor(Color.BLACK)
             setTypeface(null, Typeface.BOLD)
@@ -53,7 +58,7 @@ class MainActivity : Activity() {
         }
 
         val releaseTextView = TextView(this).apply {
-            text = "Debug RC 1"
+            text = "Release v1.0"
             textSize = 18f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -78,7 +83,32 @@ class MainActivity : Activity() {
             }
         }
 
-        val logSwitch = Switch(this).apply {
+        val divider = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                2
+            ).apply {
+                setMargins(0, 16, 0, 16)
+            }
+            setBackgroundColor(Color.GRAY)
+        }
+
+        val mainButton = Button(this).apply {
+            text = "修改渲染器设置"
+            setOnClickListener {
+                if (hasAllFilesPermission) {
+                    checkAndCreateEnvFile()
+                    visibility = Button.GONE
+                    logSwitch.visibility = Switch.VISIBLE
+                    ogpaSwitch.visibility = Switch.VISIBLE
+                    settingsButton.visibility = Button.VISIBLE
+                } else {
+                    checkPermission()
+                }
+            }
+        }
+
+        logSwitch = Switch(this).apply {
             text = "插件日志输出"
             isChecked = readLogStatus()
             setOnCheckedChangeListener { _, isChecked ->
@@ -86,7 +116,7 @@ class MainActivity : Activity() {
             }
         }
 
-        val ogpaSwitch = Switch(this).apply {
+        ogpaSwitch = Switch(this).apply {
             text = "仅使用getProcAddress(不建议使用)"
             isChecked = readOGPAStatus()
             setOnCheckedChangeListener { _, isChecked ->
@@ -94,16 +124,24 @@ class MainActivity : Activity() {
             }
         }
 
-        val settingsButton = Button(this).apply {
+        settingsButton = Button(this).apply {
             text = "Gallium驱动设置"
             setOnClickListener {
                 showGalliumDriverDialog()
             }
         }
 
+        logSwitch.visibility = Switch.GONE
+        ogpaSwitch.visibility = Switch.GONE
+        settingsButton.visibility = Button.GONE
+
         mainLayout.addView(rendererNameTextView)
         mainLayout.addView(releaseTextView)
         mainLayout.addView(authorTextView)
+        mainLayout.addView(mainButton)
+
+        mainLayout.addView(divider)
+
         mainLayout.addView(logSwitch)
         mainLayout.addView(ogpaSwitch)
         mainLayout.addView(settingsButton)

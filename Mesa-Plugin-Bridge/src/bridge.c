@@ -34,12 +34,6 @@ static void (*real_glReadPixels)(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum,
 static void (*real_glReadBuffer)(GLenum);
 
 bool checkHandle() {
-    if (!logOutPut)
-    {
-        char* log_env = getenv("OSM_PLUGIN_LOGE");
-        if (log_env && !strcmp(log_env, "true"))
-            logOutPut = true;
-    }
     if (!dl_handle) {
         char* mesa_library = getenv("MESA_LIBRARY");
         if (!mesa_library)
@@ -60,9 +54,21 @@ bool checkHandle() {
     return true;
 }
 
+void checkGalliumDriver() {
+    char* gallium_driver = getenv("GALLIUM_DRIVER");
+    if (!gallium_driver)
+    {
+        if (logOutPut) fprintf(stderr, "Error[OSM Plugin Bridge]: Failed to get Gallium Driver Env\n");
+        if (!setenv("GALLIUM_DRIVER", "zink", 1))
+        {
+            printf("[OSM Plugin Bridge]: Put Env GALLIUM_DRIVER=zink\n");
+        }
+    }
+}
+
 void set_env_from_file(const char *file_path) {
     FILE *file = fopen(file_path, "r");
-    if (!file) return;
+    if (!file) return checkGalliumDriver();
 
     char line[MAX_LINE];
     while (fgets(line, sizeof(line), file))
@@ -90,6 +96,12 @@ void set_env_from_file(const char *file_path) {
 
 __attribute__((constructor))
 static void init() {
+    char* log_env = getenv("OSM_PLUGIN_LOGE");
+    if (log_env && !strcmp(log_env, "true"))
+    {
+        logOutPut = true;
+    }
+
     set_env_from_file(FILE_PATH);
 
     Dl_info info;
