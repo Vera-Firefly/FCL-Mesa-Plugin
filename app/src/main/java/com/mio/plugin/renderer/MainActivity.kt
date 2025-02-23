@@ -62,7 +62,7 @@ class MainActivity : Activity() {
         }
 
         val releaseTextView = TextView(this).apply {
-            text = "Release v1.1"
+            text = "Release v1.2"
             textSize = 18f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -148,17 +148,19 @@ class MainActivity : Activity() {
         galliumSettings.visibility = Button.GONE
         glVersionSettings.visibility = Button.GONE
 
-        mainLayout.addView(rendererNameTextView)
-        mainLayout.addView(releaseTextView)
-        mainLayout.addView(authorTextView)
-        mainLayout.addView(divider)
+        mainLayout.apply {
+            addView(rendererNameTextView)
+            addView(releaseTextView)
+            addView(authorTextView)
+            addView(divider)
 
-        mainLayout.addView(mainButton)
+            addView(mainButton)
 
-        mainLayout.addView(logSwitch)
-        mainLayout.addView(ogpaSwitch)
-        mainLayout.addView(galliumSettings)
-        mainLayout.addView(glVersionSettings)
+            addView(logSwitch)
+            addView(ogpaSwitch)
+            addView(galliumSettings)
+            addView(glVersionSettings)
+        }
 
         scrollView.addView(mainLayout)
         setContentView(scrollView)
@@ -350,9 +352,38 @@ class MainActivity : Activity() {
             setPadding(50, 20, 50, 20)
         }
 
+        val message = TextView(this).apply {
+            text = "请输入你需要的 Mesa GL/GLSL 版本"
+            textSize = 20f
+            setTextColor(Color.BLACK)
+            gravity = Gravity.CENTER
+        }
+
+        val divider = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                2
+            ).apply {
+                setMargins(0, 16, 0, 16)
+            }
+            setBackgroundColor(Color.GRAY)
+        }
+
+        val glVersionText = TextView(this).apply {
+            text = "GL"
+            textSize = 14f
+            setTextColor(Color.BLACK)
+        }
+
         val glVersionInput = EditText(this).apply {
             hint = "MESA_GL_VERSION_OVERRIDE"
             setText(readGLVersion()) // 读取当前 GL 版本
+        }
+
+        val glslVersionText = TextView(this).apply {
+            text = "GLSL"
+            textSize = 14f
+            setTextColor(Color.BLACK)
         }
 
         val glslVersionInput = EditText(this).apply {
@@ -360,12 +391,18 @@ class MainActivity : Activity() {
             setText(readGLSLVersion()) // 读取当前 GLSL 版本
         }
 
-        layout.addView(glVersionInput)
-        layout.addView(glslVersionInput)
+        layout.apply {
+            addView(message)
+            addView(divider)
+
+            addView(glVersionText)
+            addView(glVersionInput)
+
+            addView(glslVersionText)
+            addView(glslVersionInput)
+        }
 
         val dialog = CustomDialog.Builder(this)
-            .setTitle("设置 GL/GLSL 版本")
-            .setMessage("请输入你需要的 GL/GLSL 版本")
             .setView(layout)
             .setConfirmListener { 
                 val newGLVersion = glVersionInput.text.toString().trim()
