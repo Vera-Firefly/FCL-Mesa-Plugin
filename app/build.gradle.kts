@@ -32,7 +32,7 @@ android {
             manifestPlaceholders["des"] = "Mesa 25.0.0"
             //渲染器的具体定义 格式为 名称:渲染器库名:EGL库名 例如 LTW:libltw.so:libltw.so
             //The specific definition format of a renderer is ${name}:${renderer library name}:${EGL library name}, for example:   LTW:libltw.so:libltw.so
-            manifestPlaceholders["renderer"] = "Mesa24.3.4:libOSMBridge.so:libEGL.so"
+            manifestPlaceholders["renderer"] = "Mesa3D:libOSMBridge.so:libEGL.so"
 
             //特殊Env
             //Special Env
