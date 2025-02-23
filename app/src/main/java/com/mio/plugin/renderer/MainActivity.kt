@@ -18,6 +18,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.File
+import java.lang.NumberFormatException
+
+import com.mio.plugin.renderer.CustomDialog
 
 class MainActivity : Activity() {
     private val REQUEST_CODE = 12
@@ -29,7 +32,8 @@ class MainActivity : Activity() {
 
     private lateinit var logSwitch: Switch
     private lateinit var ogpaSwitch: Switch
-    private lateinit var settingsButton: Button
+    private lateinit var galliumSettings: Button
+    private lateinit var glVersionSettings: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,7 +62,7 @@ class MainActivity : Activity() {
         }
 
         val releaseTextView = TextView(this).apply {
-            text = "Release v1.0"
+            text = "Release v1.1"
             textSize = 18f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -101,7 +105,8 @@ class MainActivity : Activity() {
                     visibility = Button.GONE
                     logSwitch.visibility = Switch.VISIBLE
                     ogpaSwitch.visibility = Switch.VISIBLE
-                    settingsButton.visibility = Button.VISIBLE
+                    galliumSettings.visibility = Button.VISIBLE
+                    glVersionSettings.visibility = Button.VISIBLE
                 } else {
                     checkPermission()
                 }
@@ -124,16 +129,24 @@ class MainActivity : Activity() {
             }
         }
 
-        settingsButton = Button(this).apply {
+        galliumSettings = Button(this).apply {
             text = "Gallium驱动设置"
             setOnClickListener {
                 showGalliumDriverDialog()
             }
         }
 
+        glVersionSettings = Button(this).apply {
+            text = "GL/GLSL版本设置"
+            setOnClickListener {
+                showSetGLVersionDialog()
+            }
+        }
+
         logSwitch.visibility = Switch.GONE
         ogpaSwitch.visibility = Switch.GONE
-        settingsButton.visibility = Button.GONE
+        galliumSettings.visibility = Button.GONE
+        glVersionSettings.visibility = Button.GONE
 
         mainLayout.addView(rendererNameTextView)
         mainLayout.addView(releaseTextView)
@@ -144,7 +157,8 @@ class MainActivity : Activity() {
 
         mainLayout.addView(logSwitch)
         mainLayout.addView(ogpaSwitch)
-        mainLayout.addView(settingsButton)
+        mainLayout.addView(galliumSettings)
+        mainLayout.addView(glVersionSettings)
 
         scrollView.addView(mainLayout)
         setContentView(scrollView)
@@ -238,7 +252,7 @@ class MainActivity : Activity() {
 
     private fun updateLogStatus(enabled: Boolean) {
         checkAndCreateEnvFile()
-        if (!hasAllFilesPermission || !envFile.exists()) return
+        if (!envFile.exists()) return
 
         val lines = envFile.readLines().toMutableList()
         var found = false
@@ -265,7 +279,7 @@ class MainActivity : Activity() {
 
     private fun updateOGPAStatus(enabled: Boolean) {
         checkAndCreateEnvFile()
-        if (!hasAllFilesPermission || !envFile.exists()) return
+        if (!envFile.exists()) return
 
         val lines = envFile.readLines().toMutableList()
         var found = false
@@ -286,8 +300,7 @@ class MainActivity : Activity() {
 
     // 选择 gallium 驱动
     private fun showGalliumDriverDialog() {
-        if (!hasAllFilesPermission) return
-        val drivers = arrayOf("zink", "freedreno", "panfrost", "softpipe", "llvmpipe")
+        val drivers = arrayOf("zink", "freedreno", "panfrost"/*, "softpipe", "llvmpipe"*/)
         val currentDriver = readCurrentGalliumDriver()
         val selectedIndex = drivers.indexOf(currentDriver)
 
@@ -327,6 +340,109 @@ class MainActivity : Activity() {
 
         if (!found)
             lines.add("GALLIUM_DRIVER=$newDriver")
+
+        envFile.writeText(lines.joinToString("\n"))
+    }
+
+    private fun showSetGLVersionDialog() {
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(50, 20, 50, 20)
+        }
+
+        val glVersionInput = EditText(this).apply {
+            hint = "MESA_GL_VERSION_OVERRIDE"
+            setText(readGLVersion()) // 读取当前 GL 版本
+        }
+
+        val glslVersionInput = EditText(this).apply {
+            hint = "MESA_GLSL_VERSION_OVERRIDE"
+            setText(readGLSLVersion()) // 读取当前 GLSL 版本
+        }
+
+        layout.addView(glVersionInput)
+        layout.addView(glslVersionInput)
+
+        val dialog = CustomDialog.Builder(this)
+            .setTitle("设置 GL/GLSL 版本")
+            .setMessage("请输入你需要的 GL/GLSL 版本")
+            .setView(layout)
+            .setConfirmListener { 
+                val newGLVersion = glVersionInput.text.toString().trim()
+                val newGLSLVersion = glslVersionInput.text.toString().trim()
+
+                val validGLVersion = isValidVersion(newGLVersion, "2.8", "4.6") && newGLVersion.matches(Regex("[234]\\.(\\d)"))
+                val validGLSLVersion = isValidVersion(newGLSLVersion, "280", "460") && newGLSLVersion.matches(Regex("[234](\\d)0"))
+
+                if (!validGLVersion || !validGLSLVersion) {
+                    if (!validGLVersion) {
+                        glVersionInput.error = "输入值不合法"
+                        glVersionInput.requestFocus()
+                    }
+                    if (!validGLSLVersion) {
+                        glslVersionInput.error = "输入值不合法"
+                        glslVersionInput.requestFocus()
+                    }
+                    false
+                } else {
+                    updateGLVersions(newGLVersion, newGLSLVersion)
+                    Toast.makeText(this, "GL/GLSL 版本已更新", Toast.LENGTH_SHORT).show()
+                    true
+                }
+            }
+            .build()
+        dialog.show()
+    }
+
+    private fun isValidVersion(version: String, minVersion: String, maxVersion: String): Boolean {
+        return try {
+            val versionNumber = version.toFloat()
+            val minVersionNumber = minVersion.toFloat()
+            val maxVersionNumber = maxVersion.toFloat()
+
+            versionNumber in minVersionNumber..maxVersionNumber
+        } catch (e: NumberFormatException) {
+            false
+        }
+    }
+
+    // 读取当前 GL 版本
+    private fun readGLVersion(): String {
+        if (!envFile.exists() || !hasAllFilesPermission) return "4.6"
+        return envFile.readLines().firstOrNull { it.startsWith("MESA_GL_VERSION_OVERRIDE=") }
+            ?.substringAfter("=")?.trim() ?: "4.6"
+    }
+
+    // 读取当前 GLSL 版本
+    private fun readGLSLVersion(): String {
+        if (!envFile.exists() || !hasAllFilesPermission) return "460"
+        return envFile.readLines().firstOrNull { it.startsWith("MESA_GLSL_VERSION_OVERRIDE=") }
+            ?.substringAfter("=")?.trim() ?: "460"
+    }
+
+    // 更新 GL/GLSL 版本
+    private fun updateGLVersions(newGL: String, newGLSL: String) {
+        checkAndCreateEnvFile()
+        if (!hasAllFilesPermission || !envFile.exists()) return
+
+        val lines = envFile.readLines().toMutableList()
+    
+        var glFound = false
+        var glslFound = false
+
+        for (i in lines.indices) {
+            if (lines[i].startsWith("MESA_GL_VERSION_OVERRIDE=")) {
+                lines[i] = "MESA_GL_VERSION_OVERRIDE=$newGL"
+                glFound = true
+            }
+            if (lines[i].startsWith("MESA_GLSL_VERSION_OVERRIDE=")) {
+                lines[i] = "MESA_GLSL_VERSION_OVERRIDE=$newGLSL"
+                glslFound = true
+            }
+        }
+
+        if (!glFound) lines.add("MESA_GL_VERSION_OVERRIDE=$newGL")
+        if (!glslFound) lines.add("MESA_GLSL_VERSION_OVERRIDE=$newGLSL")
 
         envFile.writeText(lines.joinToString("\n"))
     }
