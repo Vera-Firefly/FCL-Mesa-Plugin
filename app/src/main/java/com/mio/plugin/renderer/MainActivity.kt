@@ -32,6 +32,7 @@ class MainActivity : Activity() {
 
     private lateinit var logSwitch: Switch
     private lateinit var ogpaSwitch: Switch
+    private lateinit var glThreadSwitch: Switch
     private lateinit var galliumSettings: Button
     private lateinit var glVersionSettings: Button
 
@@ -62,7 +63,7 @@ class MainActivity : Activity() {
         }
 
         val releaseTextView = TextView(this).apply {
-            text = "Release v1.2"
+            text = "Release v1.3"
             textSize = 18f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -105,6 +106,7 @@ class MainActivity : Activity() {
                     visibility = Button.GONE
                     logSwitch.visibility = Switch.VISIBLE
                     ogpaSwitch.visibility = Switch.VISIBLE
+                    glThreadSwitch.visibility = Switch.VISIBLE
                     galliumSettings.visibility = Button.VISIBLE
                     glVersionSettings.visibility = Button.VISIBLE
                 } else {
@@ -129,6 +131,14 @@ class MainActivity : Activity() {
             }
         }
 
+        glThreadSwitch = Switch(this).apply {
+            text = "启用 mesa_glthread"
+            isChecked = readGLThreadStatus()
+            setOnCheckedChangeListener { _, isChecked ->
+                updateGLThreadStatus(isChecked)
+            }
+        }
+
         galliumSettings = Button(this).apply {
             text = "Gallium驱动设置"
             setOnClickListener {
@@ -139,12 +149,13 @@ class MainActivity : Activity() {
         glVersionSettings = Button(this).apply {
             text = "GL/GLSL版本设置"
             setOnClickListener {
-                showSetGLVersionDialog()
+                glVersionSettingsDialog()
             }
         }
 
         logSwitch.visibility = Switch.GONE
         ogpaSwitch.visibility = Switch.GONE
+        glThreadSwitch.visibility = Switch.GONE
         galliumSettings.visibility = Button.GONE
         glVersionSettings.visibility = Button.GONE
 
@@ -158,6 +169,7 @@ class MainActivity : Activity() {
 
             addView(logSwitch)
             addView(ogpaSwitch)
+            addView(glThreadSwitch)
             addView(galliumSettings)
             addView(glVersionSettings)
         }
@@ -237,6 +249,8 @@ class MainActivity : Activity() {
             envFile.writeText(
                 """
                 GALLIUM_DRIVER=zink
+                mesa_glthread=false
+                CUSTOM_GL_GLSL=2
                 MESA_GL_VERSION_OVERRIDE=4.6
                 MESA_GLSL_VERSION_OVERRIDE=460
                 OSM_PLUGIN_LOGE=false
@@ -300,6 +314,33 @@ class MainActivity : Activity() {
         envFile.writeText(lines.joinToString("\n"))
     }
 
+    // 是否启用 mesa_glthread
+    private fun readGLThreadStatus(): Boolean {
+        if (!envFile.exists() || !hasAllFilesPermission) return false
+        return envFile.readLines().any { it.trim() == "mesa_glthread=true" }
+    }
+
+    private fun updateGLThreadStatus(enabled: Boolean) {
+        checkAndCreateEnvFile()
+        if (!envFile.exists()) return
+
+        val lines = envFile.readLines().toMutableList()
+        var found = false
+
+        for (i in lines.indices) {
+            if (lines[i].startsWith("mesa_glthread=")) {
+                lines[i] = "mesa_glthread=$enabled"
+                found = true
+                break
+            }
+        }
+
+        if (!found)
+            lines.add("mesa_glthread=$enabled")
+
+        envFile.writeText(lines.joinToString("\n"))
+    }
+
     // 选择 gallium 驱动
     private fun showGalliumDriverDialog() {
         val drivers = arrayOf("zink", "freedreno", "panfrost"/*, "softpipe", "llvmpipe"*/)
@@ -346,14 +387,68 @@ class MainActivity : Activity() {
         envFile.writeText(lines.joinToString("\n"))
     }
 
-    private fun showSetGLVersionDialog() {
+    // GL/GLSL 版本设置
+    private fun glVersionSettingsDialog() {
+        val options = arrayOf("跟随系统", "固定版本", "自定义")
+        val currentSetting = readCustomGLSetting()
+        val selectedIndex = when (currentSetting) {
+            "1" -> 0
+            "2" -> 1
+            "3" -> 2
+            else -> 0
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Mesa GL/GLSL 版本设置")
+            .setSingleChoiceItems(options, selectedIndex) { dialog, which ->
+                val newSetting = (which + 1).toString()
+                updateCustomGLSetting(newSetting)
+                if (newSetting == "3") {
+                    dialog.dismiss()
+                    customGLVersionDialog()
+                } else {
+                    Toast.makeText(this, "已选择: ${options[which]}", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                }
+                }
+            .show()
+    }
+
+    private fun readCustomGLSetting(): String {
+        if (!envFile.exists() || !hasAllFilesPermission) return "1"
+        return envFile.readLines().firstOrNull { it.startsWith("CUSTOM_GL_GLSL=") }
+            ?.substringAfter("=")?.trim() ?: "1"
+    }
+
+    private fun updateCustomGLSetting(newSetting: String) {
+        checkAndCreateEnvFile()
+        if (!hasAllFilesPermission || !envFile.exists()) return
+
+        val lines = envFile.readLines().toMutableList()
+        var found = false
+
+        for (i in lines.indices) {
+            if (lines[i].startsWith("CUSTOM_GL_GLSL=")) {
+                lines[i] = "CUSTOM_GL_GLSL=$newSetting"
+                found = true
+                break
+            }
+        }
+
+        if (!found) lines.add("CUSTOM_GL_GLSL=$newSetting")
+
+        envFile.writeText(lines.joinToString("\n"))
+    }
+
+    // 自定义 GL/GLSL
+    private fun customGLVersionDialog() {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(50, 20, 50, 20)
         }
 
         val message = TextView(this).apply {
-            text = "请输入你需要的 Mesa GL/GLSL 版本"
+            text = "自定义 Mesa GL/GLSL 版本"
             textSize = 20f
             setTextColor(Color.BLACK)
             gravity = Gravity.CENTER
@@ -372,7 +467,7 @@ class MainActivity : Activity() {
         val glVersionText = TextView(this).apply {
             text = "GL"
             textSize = 14f
-            setTextColor(Color.BLACK)
+            setTextColor(Color.BLUE)
         }
 
         val glVersionInput = EditText(this).apply {
@@ -383,7 +478,7 @@ class MainActivity : Activity() {
         val glslVersionText = TextView(this).apply {
             text = "GLSL"
             textSize = 14f
-            setTextColor(Color.BLACK)
+            setTextColor(Color.BLUE)
         }
 
         val glslVersionInput = EditText(this).apply {

@@ -16,8 +16,14 @@
 #define MAX_LINE 256
 
 static bool logOutPut = false;
+static bool isFollowSystem = false;
+static bool isCustomMesaGL_GLSL = false;
+static bool onlyUseGetProcAddress = false;
 static void* dl_handle = NULL;
 static void* self_handle = NULL;
+static char *glVersion;
+static char *glslVersion;
+static char *customGL_GLSL;
 
 static OSMESAproc (*real_OSMesaGetProcAddress)(const char *);
 static GLboolean (*real_OSMesaMakeCurrent)(OSMesaContext, void*, GLenum, GLsizei, GLsizei);
@@ -58,17 +64,46 @@ void checkGalliumDriver() {
     char* gallium_driver = getenv("GALLIUM_DRIVER");
     if (!gallium_driver)
     {
-        if (logOutPut) fprintf(stderr, "Error[OSM Plugin Bridge]: Failed to get Gallium Driver Env\n");
-        if (!setenv("GALLIUM_DRIVER", "zink", 1))
+        fprintf(stderr, "Error[OSM Plugin Bridge]: Failed to get Gallium Driver Env\n");
+        if (setenv("GALLIUM_DRIVER", "zink", 1) == 0)
         {
             printf("[OSM Plugin Bridge]: Put Env GALLIUM_DRIVER=zink\n");
         }
     }
 }
 
+void setGLversion() {
+    if (!customGL_GLSL) return;
+
+    if (!strcmp(customGL_GLSL, "1"))
+    {
+        isFollowSystem = true;
+        return;
+    }
+
+    if (!strcmp(customGL_GLSL, "2"))
+    {
+        setenv("MESA_GL_VERSION_OVERRIDE", "4.6", 1);
+        setenv("MESA_GLSL_VERSION_OVERRIDE", "460", 1);
+        return;
+    }
+
+    if (!strcmp(customGL_GLSL, "3") && glVersion && glslVersion)
+    {
+        isCustomMesaGL_GLSL = true;
+        setenv("MESA_GL_VERSION_OVERRIDE", glVersion, 1);
+        setenv("MESA_GLSL_VERSION_OVERRIDE", glslVersion, 1);
+        return;
+    }
+}
+
 void set_env_from_file(const char *file_path) {
     FILE *file = fopen(file_path, "r");
     if (!file) return checkGalliumDriver();
+
+    char glVersionBuffer[MAX_LINE] = {0};
+    char glslVersionBuffer[MAX_LINE] = {0};
+    char customGL_GLSL_Buffer[MAX_LINE] = {0};
 
     char line[MAX_LINE];
     while (fgets(line, sizeof(line), file))
@@ -81,13 +116,96 @@ void set_env_from_file(const char *file_path) {
             char *key = line;
             char *value = delimiter + 1;
 
-            if (setenv(key, value, 1) != 0) {
-                if (logOutPut) fprintf(stderr, "Warning[OSM Plugin Bridge]: Failed to set environment variable %s=%s\n", key, value);
-            } else {
-                printf("[OSM Plugin Bridge]: Put Env %s=%s\n", key, value);
+            if (!strcmp(key, "OSM_PLUGIN_LOGE"))
+            {
+                if (!strcmp(value, "true"))
+                {
+                    logOutPut = true;
+                }
+                continue;
             }
+
+            if (!strcmp(key, "mesa_glthread"))
+            {
+                if (!strcmp(value, "false")) continue;
+                if (setenv(key, value, 1) != 0) {
+                    if (logOutPut)
+                    {
+                        fprintf(stderr, "Warning[OSM Plugin Bridge]: Failed to set environment variable %s=%s\n", key, value);
+                    }
+                    continue;
+                }
+                printf("[OSM Plugin Bridge]: Set Env %s=%s\n", key, value);
+                continue;
+            }
+
+            if (!strcmp(key, "CUSTOM_GL_GLSL"))
+            {
+                strncpy(customGL_GLSL_Buffer, value, sizeof(customGL_GLSL_Buffer) - 1);
+                customGL_GLSL = customGL_GLSL_Buffer;
+                continue;
+            }
+
+            if (!strcmp(key, "MESA_GL_VERSION_OVERRIDE"))
+            {
+                strncpy(glVersionBuffer, value, sizeof(glVersionBuffer) - 1);
+                glVersion = glVersionBuffer;
+                continue;
+            }
+
+            if (!strcmp(key, "MESA_GLSL_VERSION_OVERRIDE"))
+            {
+                strncpy(glslVersionBuffer, value, sizeof(glslVersionBuffer) - 1);
+                glslVersion = glslVersionBuffer;
+                continue;
+            }
+
+            if (!strcmp(key, "ONLY_GET_PROC_ADDRESS"))
+            {
+                if (!strcmp(value, "true"))
+                {
+                    onlyUseGetProcAddress = true;
+                }
+                continue;
+            }
+
+            if (setenv(key, value, 1) != 0)
+            {
+                if (logOutPut)
+                {
+                    fprintf(stderr, "Warning[OSM Plugin Bridge]: Failed to set environment variable %s=%s\n", key, value);
+                }
+                continue;
+            }
+            printf("[OSM Plugin Bridge]: Set Env %s=%s\n", key, value);
         }
     }
+
+    setGLversion();
+
+    char *mesaGLVersion = getenv("MESA_GL_VERSION_OVERRIDE");
+    char *mesaGLSLVersion = getenv("MESA_GLSL_VERSION_OVERRIDE");
+
+    if (mesaGLVersion && mesaGLSLVersion)
+    {
+        printf("[OSM Plugin Bridge]: Set Env MESA_GL_VERSION_OVERRIDE=%s\n", mesaGLVersion);
+        printf("[OSM Plugin Bridge]: Set Env MESA_GLSL_VERSION_OVERRIDE=%s\n", mesaGLSLVersion);
+    }
+    else
+    {
+        if (!isFollowSystem && glVersion && glslVersion)
+        {
+            if (!isCustomMesaGL_GLSL)
+            {
+                setenv("MESA_GL_VERSION_OVERRIDE", glVersion, 1);
+                setenv("MESA_GLSL_VERSION_OVERRIDE", glslVersion, 1);
+            }
+            printf("[OSM Plugin Bridge]: Set Env MESA_GL_VERSION_OVERRIDE=%s\n", glVersion);
+            printf("[OSM Plugin Bridge]: Set Env MESA_GLSL_VERSION_OVERRIDE=%s\n", glslVersion);
+        }
+    }
+
+    checkGalliumDriver();
 
     if (fclose(file) != 0) {
         if (logOutPut) fprintf(stderr, "Warning[OSM Plugin Bridge]: Failed to close file %s\n", file_path);
@@ -96,12 +214,6 @@ void set_env_from_file(const char *file_path) {
 
 __attribute__((constructor))
 static void init() {
-    char* log_env = getenv("OSM_PLUGIN_LOGE");
-    if (log_env && !strcmp(log_env, "true"))
-    {
-        logOutPut = true;
-    }
-
     set_env_from_file(FILE_PATH);
 
     Dl_info info;
@@ -140,9 +252,7 @@ static void init() {
 }
 
 void* GetProcAddress(const char *funcName) {
-    char* onlyUseGetProcAddress = getenv("ONLY_GET_PROC_ADDRESS");
-
-    if (!checkHandle() && !strcmp(onlyUseGetProcAddress, "false")) return NULL;
+    if (!checkHandle() && !onlyUseGetProcAddress) return NULL;
 
     dlerror();
     void* symbol = dlsym(dl_handle, funcName);
